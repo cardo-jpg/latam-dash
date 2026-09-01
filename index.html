@@ -66,6 +66,17 @@
   .pc-bad{background:rgba(239,95,107,.14);color:var(--bad);}
   .pc-warn{background:rgba(240,180,41,.14);color:var(--warn);}
 
+  /* meta destaque */
+  .metabar{background:linear-gradient(120deg,rgba(233,196,106,.10),rgba(224,122,95,.08));border:1px solid var(--border);border-radius:16px;padding:18px 22px;margin-top:16px;}
+  .metabar .mt{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .metabar .mt .ml{font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sun);}
+  .metabar .mt .mv{font-family:var(--disp);font-size:1.15rem;font-weight:800;}
+  .metabar .mt .mv b{color:var(--gold);} .metabar .mt .mv .sep{color:var(--sub);font-weight:600;margin:0 4px;}
+  .metabar .track{height:16px;background:#0c1219;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .metabar .fill{height:100%;border-radius:9px;background:linear-gradient(90deg,var(--gold),var(--terra));transition:width .5s;}
+  .metabar .mfoot{display:flex;justify-content:space-between;margin-top:8px;font-size:.74rem;color:var(--sub);flex-wrap:wrap;gap:6px;}
+  .metabar .mfoot b{color:var(--soft);}
+
   /* section label */
   .lbl{font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sun);margin:30px 0 13px;display:flex;align-items:center;gap:10px;}
   .lbl::after{content:'';flex:1;height:1px;background:var(--border);}
@@ -246,13 +257,24 @@
     const metaInvP=_pais==='all'?META_INV_USD:Math.round(META_INV_USD/3);
 
     let h='';
-    // gauges
+    // gauges — investimento em REAL (a conta é em US$, convertemos p/ R$)
+    const metaInvR=metaInvP*COT;
     h+='<div class="gauges">';
-    h+=gauge('Leads',leads,metaLeadsP,NUM,paceLeads.t,paceLeads.c,'de '+NUM(metaLeadsP));
-    h+=gauge('CPL',cplU,META_CPL_USD,USD,cplPace.t,cplPace.c,'meta '+USD(META_CPL_USD));
-    h+=gauge('Investido',cost,metaInvP,USD,null,'','de '+USD(metaInvP));
+    h+=gauge('Leads',leads,metaLeadsP,NUM,paceLeads.t,paceLeads.c,'meta '+NUM(metaLeadsP));
+    h+=gauge('CPL',cplR,META_CPL_USD*COT,BRL,cplPace.t,cplPace.c,'meta '+BRL(META_CPL_USD*COT));
+    h+=gauge('Investido',costR,metaInvR,BRL,null,'','meta '+BRL(metaInvR));
     h+=gauge('CTR',ctr,5,PCT,null,'','cliques / impressões');
     h+='</div>';
+
+    // barra de META DE LEADS (destaque)
+    const pctLeads=Math.min(100,div(leads,metaLeadsP)*100);
+    h+=`<div class="metabar">
+      <div class="mt"><span class="ml">🎯 Meta de leads${_pais==='all'?'':' · '+(paisMeta[_pais]?paisMeta[_pais].nm:_pais)}</span>
+        <span class="mv"><b>${NUM(leads)}</b><span class="sep">/</span>${NUM(metaLeadsP)} <span style="font-size:.8rem;color:var(--sub)">(${PCT(pctLeads)})</span></span></div>
+      <div class="track"><div class="fill" style="width:${pctLeads}%"></div></div>
+      <div class="mfoot"><span>Faltam <b>${NUM(faltaLeads)}</b> leads · <b>${diasRest}</b> dias de captação</span>
+        <span>Ritmo p/ meta: <b>${NUM(needDia)}/dia</b> · atual <b>${NUM(ritmoDia)}/dia</b></span></div>
+    </div>`;
 
     // KPI strip (dinheiro em R$ tb)
     h+='<div class="lbl">Resumo da captação</div>';
