@@ -51,6 +51,18 @@
   .upd{margin-left:auto;font-size:.72rem;color:var(--sub);}
   .btn{background:var(--card);border:1px solid var(--border);color:var(--soft);border-radius:20px;padding:7px 15px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;}
   .btn:hover{border-color:var(--gold);color:#fff;}
+  /* filtro de data */
+  .datebar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+  .presets{display:flex;background:var(--card);border:1px solid var(--border);border-radius:22px;overflow:hidden;padding:4px;gap:4px;}
+  .preset{border:none;background:none;color:var(--sub);font-weight:700;font-size:.78rem;padding:6px 13px;border-radius:18px;cursor:pointer;font-family:inherit;transition:.15s;}
+  .preset:hover{color:var(--text);}
+  .preset.active{color:#10161f;background:linear-gradient(120deg,var(--agave),#3fc9b8);}
+  .dbox{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:22px;padding:5px 12px;}
+  .dlbl{font-size:.72rem;color:var(--sub);font-weight:600;}
+  .dbox input[type=date]{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:4px 8px;font-size:.76rem;font-family:inherit;color-scheme:dark;cursor:pointer;}
+  .dbox input[type=date]:hover{border-color:var(--gold);}
+  .dclear{background:none;border:none;color:var(--sub);font-size:.9rem;cursor:pointer;padding:0 4px;}
+  .dclear:hover{color:var(--bad);}
 
   /* gauges */
   .gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 6px;}
@@ -158,6 +170,21 @@
     <span class="upd" id="upd"></span>
   </div>
 
+  <div class="datebar">
+    <div class="presets" id="presets">
+      <button class="preset" data-d="1" onclick="setPreset(this)">Ontem</button>
+      <button class="preset" data-d="3" onclick="setPreset(this)">3 dias</button>
+      <button class="preset" data-d="7" onclick="setPreset(this)">7 dias</button>
+      <button class="preset" data-d="14" onclick="setPreset(this)">14 dias</button>
+      <button class="preset active" data-d="all" onclick="setPreset(this)">Tudo</button>
+    </div>
+    <div class="dbox">
+      <span class="dlbl">De</span><input type="date" id="dDe" onchange="setDates()">
+      <span class="dlbl">até</span><input type="date" id="dAte" onchange="setDates()">
+      <button class="dclear" id="dClear" onclick="clearDates()" style="display:none" title="Limpar">✕</button>
+    </div>
+  </div>
+
   <div id="body"><div class="loading">Cargando datos…</div></div>
 
   <div class="foot" id="foot">Cardô Marketing · dados ao vivo da planilha · investimento convertido a R$ <span id="cotLbl">5,19</span>/US$</div>
@@ -174,6 +201,50 @@
   const CAP_FIM=new Date(2026,8,20);   // 20/09 (fim da captação / abre carrinho)
 
   let DATA=[], _pais='all', _charts=[], _sort={key:'inv',dir:-1};
+  let _presetDays='all', _fStart=null, _fEnd=null;
+  const FLOOR=new Date(2026,7,1);   // piso: ago/2026 (início do LATAM)
+
+  const dkey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  function cutoff(){
+    if(_presetDays==='all') return FLOOR;
+    const t=new Date();t.setHours(0,0,0,0);
+    const c=new Date(t);c.setDate(c.getDate()-Number(_presetDays));
+    return c<FLOOR?FLOOR:c;
+  }
+  const inRange=d=>{
+    if(_fStart && d<_fStart) return false;
+    if(_fEnd   && d>_fEnd)   return false;
+    return d>=cutoff();
+  };
+  const _pDate=v=>{if(!v)return null;const p=v.split('-');return new Date(+p[0],+p[1]-1,+p[2]);};
+  function setPreset(el){
+    document.querySelectorAll('.preset').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');_presetDays=el.dataset.d;
+    _fStart=_fEnd=null;
+    document.getElementById('dDe').value='';document.getElementById('dAte').value='';
+    document.getElementById('dClear').style.display='none';
+    render();
+  }
+  function setDates(){
+    _fStart=_pDate(document.getElementById('dDe').value);
+    _fEnd  =_pDate(document.getElementById('dAte').value);
+    if(_fStart&&_fEnd&&_fStart>_fEnd){const t=_fStart;_fStart=_fEnd;_fEnd=t;
+      document.getElementById('dDe').value=dkey(_fStart);document.getElementById('dAte').value=dkey(_fEnd);}
+    if(_fStart||_fEnd){_presetDays='all';
+      document.querySelectorAll('.preset').forEach(t=>t.classList.remove('active'));
+      document.getElementById('dClear').style.display='';
+    }else{document.querySelector('.preset[data-d="all"]').classList.add('active');
+      document.getElementById('dClear').style.display='none';}
+    render();
+  }
+  function clearDates(){
+    _fStart=_fEnd=null;_presetDays='all';
+    document.getElementById('dDe').value='';document.getElementById('dAte').value='';
+    document.getElementById('dClear').style.display='none';
+    document.querySelectorAll('.preset').forEach(t=>t.classList.remove('active'));
+    document.querySelector('.preset[data-d="all"]').classList.add('active');
+    render();
+  }
 
   const NUM=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString('pt-BR');
   const USD=v=>(v==null||isNaN(v))?'—':'US$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -237,7 +308,7 @@
 
   function render(){
     _charts.forEach(c=>{try{c.destroy();}catch(e){}});_charts=[];
-    const rows=DATA.filter(r=>_pais==='all'||r.pais===_pais);
+    const rows=DATA.filter(r=>(_pais==='all'||r.pais===_pais)&&inRange(r.date));
     if(!rows.length){document.getElementById('body').innerHTML='<div class="empty">Sem dados para esse filtro.</div>';return;}
     const S=k=>rows.reduce((s,r)=>s+(r[k]||0),0);
     const cost=S('cost'), imp=S('imp'), clk=S('clk'), pv=S('pv'), leads=S('leads');
@@ -291,7 +362,7 @@
     if(_pais==='all'){
       h+='<div class="lbl">Por país</div><div class="paises">';
       for(const p of ['Mexico','Colombia','Geral']){
-        const pr=DATA.filter(r=>r.pais===p);
+        const pr=DATA.filter(r=>r.pais===p&&inRange(r.date));
         const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0), pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0);
         const m=paisMeta[p];
         h+=`<div class="pcard" style="--pc:${m.col}">
@@ -383,7 +454,7 @@
   }
   function drawPais(){
     const el=document.getElementById('cPais');if(!el)return;
-    const ps=['Mexico','Colombia','Geral'];const vals=ps.map(p=>DATA.filter(r=>r.pais===p).reduce((s,r)=>s+r.leads,0));
+    const ps=['Mexico','Colombia','Geral'];const vals=ps.map(p=>DATA.filter(r=>r.pais===p&&inRange(r.date)).reduce((s,r)=>s+r.leads,0));
     _charts.push(new Chart(el,{type:'bar',data:{labels:ps.map(p=>paisMeta[p].fl+' '+paisMeta[p].nm),datasets:[{data:vals,
       backgroundColor:['rgba(233,196,106,.7)','rgba(47,176,160,.7)','rgba(224,122,95,.7)'],borderColor:['#E9C46A','#2FB0A0','#E07A5F'],borderWidth:1,borderRadius:6,maxBarThickness:60}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+NUM(c.parsed.y)+' leads'}}},
@@ -392,7 +463,7 @@
   function drawCpl(){
     const el=document.getElementById('cCpl');if(!el)return;
     const ps=['Mexico','Colombia','Geral'];
-    const vals=ps.map(p=>{const pr=DATA.filter(r=>r.pais===p);const c=pr.reduce((s,r)=>s+r.cost,0),l=pr.reduce((s,r)=>s+r.leads,0);return l?+(c/l).toFixed(2):0;});
+    const vals=ps.map(p=>{const pr=DATA.filter(r=>r.pais===p&&inRange(r.date));const c=pr.reduce((s,r)=>s+r.cost,0),l=pr.reduce((s,r)=>s+r.leads,0);return l?+(c/l).toFixed(2):0;});
     _charts.push(new Chart(el,{type:'bar',data:{labels:ps.map(p=>paisMeta[p].fl+' '+paisMeta[p].nm),datasets:[{data:vals,
       backgroundColor:['rgba(233,196,106,.7)','rgba(47,176,160,.7)','rgba(224,122,95,.7)'],borderColor:['#E9C46A','#2FB0A0','#E07A5F'],borderWidth:1,borderRadius:6,maxBarThickness:60}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
