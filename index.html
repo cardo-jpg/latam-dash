@@ -549,11 +549,12 @@
       const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0),
         pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0), ppv=pr.reduce((s,r)=>s+r.pv,0);
       const m=paisMeta[p], lp=lpDe[p]||LPS[0];
+      // Page View foi removido: o Stract está subcontando (11-18% dos cliques vs
+      // 60-90% esperado), o que dava incoerência (PV < Leads). Funil = Impr→Cliques→Leads.
       const steps=[
-        {n:'IMPRESSÕES', v:pi, wt:100, wb:78, rate:'CTR '+PCT(div(pk,pi)*100)},
-        {n:'CLIQUES',    v:pk, wt:76,  wb:54, rate:'CONNECT '+PCT(div(ppv,pk)*100)},
-        {n:'PAGE VIEW',  v:ppv,wt:52,  wb:34, rate:'CONVERSÃO '+PCT(Math.min(100,div(pl,ppv)*100))},
-        {n:'LEADS',      v:pl, wt:32,  wb:22, rate:''},
+        {n:'IMPRESSÕES', v:pi, wt:100, wb:74, rate:'CTR '+PCT(div(pk,pi)*100)},
+        {n:'CLIQUES',    v:pk, wt:70,  wb:44, rate:'CONVERSÃO '+PCT(Math.min(100,div(pl,pk)*100))},
+        {n:'LEADS',      v:pl, wt:40,  wb:26, rate:''},
       ];
       const hue={Mexico:43,Colombia:170,Peru:28,Geral:12}[p]||280;
       let fn='<div class="fn">';
@@ -575,7 +576,7 @@
         <div class="pfp-body">
           <div>${fn}</div>
           <div class="pfp-charts">
-            <div class="pfp-cc"><div class="pfp-ct">Connect Rate por dia</div><div class="pfp-ch"><canvas id="pf_c${fi}"></canvas></div></div>
+            <div class="pfp-cc"><div class="pfp-ct">CTR por dia</div><div class="pfp-ch"><canvas id="pf_c${fi}"></canvas></div></div>
             <div class="pfp-cc"><div class="pfp-ct">Leads por dia</div><div class="pfp-ch"><canvas id="pf_l${fi}"></canvas></div></div>
           </div>
         </div>
@@ -587,12 +588,12 @@
     jobs.forEach(j=>drawFunnelCharts(j));
     document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   }
-  // gráficos por dia de um país no painel de funil: Connect Rate (%) e Leads
+  // gráficos por dia de um país no painel de funil: CTR (%) e Leads
   function drawFunnelCharts(job){
     const by={};
-    for(const r of job.rows){ const k=r.date.getFullYear()+'-'+String(r.date.getMonth()+1).padStart(2,'0')+'-'+String(r.date.getDate()).padStart(2,'0'); const o=by[k]||(by[k]={clk:0,pv:0,leads:0}); o.clk+=r.clk;o.pv+=r.pv;o.leads+=r.leads; }
+    for(const r of job.rows){ const k=r.date.getFullYear()+'-'+String(r.date.getMonth()+1).padStart(2,'0')+'-'+String(r.date.getDate()).padStart(2,'0'); const o=by[k]||(by[k]={clk:0,imp:0,leads:0}); o.clk+=r.clk;o.imp+=r.imp;o.leads+=r.leads; }
     const ks=Object.keys(by).sort(), lbls=ks.map(k=>{const p=k.split('-');return p[2]+'/'+p[1];});
-    const cr=ks.map(k=>by[k].clk?+(by[k].pv/by[k].clk*100).toFixed(1):null);
+    const cr=ks.map(k=>by[k].imp?+(by[k].clk/by[k].imp*100).toFixed(2):null);
     const ld=ks.map(k=>by[k].leads);
     const elC=document.getElementById('pf_c'+job.fi);
     if(elC) _charts.push(new Chart(elC,{type:'line',data:{labels:lbls,datasets:[{data:cr,borderColor:job.col,backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.3,spanGaps:true}]},
