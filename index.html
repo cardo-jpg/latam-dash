@@ -103,17 +103,14 @@
   .kpi.k-gold{border-top-color:var(--gold);} .kpi.k-agave{border-top-color:var(--agave);}
   .kpi.k-terra{border-top-color:var(--terra);} .kpi.k-good .kv{color:var(--good);}
 
-  /* pesquisa */
-  .pq-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-  @media(max-width:760px){.pq-grid{grid-template-columns:1fr;}}
-  .pq-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;}
-  .pq-t{font-size:.82rem;font-weight:800;margin-bottom:12px;color:var(--soft);}
-  .pq-bar{display:grid;grid-template-columns:130px 1fr 78px;align-items:center;gap:10px;margin-bottom:7px;}
-  .pq-l{font-size:.74rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .pq-tk{height:14px;background:#0c1219;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
-  .pq-f{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--gold),var(--terra));}
-  .pq-n{font-size:.72rem;color:var(--soft);font-weight:700;text-align:right;font-family:var(--disp);}
-  @media(max-width:460px){.pq-bar{grid-template-columns:90px 1fr 60px;}}
+  /* pesquisa (padrão WICI: cards com gráficos) */
+  .pq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;}
+  .pq-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+  .pq-card h4{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:14px;}
+  .pq-card .pq-cw{position:relative;height:300px;}
+  .pq-card.pq-wide{grid-column:1/-1;}
+  .pq-card .wc{display:flex;flex-wrap:wrap;align-items:center;align-content:center;justify-content:center;gap:4px 18px;padding:22px 16px;min-height:180px;line-height:1.05;}
+  .wcw{font-weight:800;white-space:nowrap;}
 
   /* landing pages */
   .lps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
@@ -339,52 +336,84 @@
     const db=document.querySelector('.datebar'); if(db) db.style.display=hide?'none':'';
     if(hide) renderPesquisa(); else render();
   }
-  // ── Pesquisa de qualificação ────────────────────────────────────────────────
+  // ── Pesquisa de qualificação (padrão WICI: cards com gráficos Chart.js) ───────
+  const _pqAgg=(idx,top,norm)=>{ const m={};
+    for(const r of _pesq){ const raw=cStr(r.c[idx]); const v=norm?norm(raw):(raw||'—'); if(v==null||v==='')continue; m[v]=(m[v]||0)+1; }
+    const a=Object.entries(m).map(([label,count])=>({label,count})).sort((x,y)=>y.count-x.count);
+    return top?a.slice(0,top):a; };
+  const _pqCard=(t,id,cls)=>`<div class="pq-card ${cls||''}"><h4>${t}</h4><div class="pq-cw"><canvas id="${id}"></canvas></div></div>`;
+  const _pqCloud=(t,id)=>`<div class="pq-card pq-wide"><h4>${t}</h4><div class="wc" id="${id}"></div></div>`;
+  const _pqPais=v=>{ v=(v||'').trim(); const l=v.toLowerCase();
+    const map={'mexico':'México','méxico':'México','peru':'Peru','perú':'Peru','panama':'Panamá','panamá':'Panamá','colombia':'Colômbia','colômbia':'Colômbia','ecuador':'Equador','equador':'Equador','bolivia':'Bolívia','bolívia':'Bolívia','paraguay':'Paraguai','paraguai':'Paraguai','chile':'Chile','estados unidos':'EUA','usa':'EUA','argentina':'Argentina','venezuela':'Venezuela','españa':'Espanha','espanha':'Espanha'};
+    for(const k in map) if(l.includes(k)) return map[k];
+    return v||'—'; };
+  const _pqIng=v=>/fluid|fluent|comunico/i.test(v)?'Fluente':/practicar|necesito/i.test(v)?'Intermediário':/cuesta|poco/i.test(v)?'Básico':/no habl/i.test(v)?'Zero':(v||'—');
+  const _pqSN=v=>/^s[ií]/i.test(v)?'Sim':/^n/i.test(v)?'Não':(v||'—');
+  const _pqProf=v=>{ v=(v||'').split('(')[0].trim(); return /^outro/i.test(v)?'':v; };
+  const _pqIda=v=>{ const n=parseInt(v)||0; if(!n)return '—'; return n<25?'18-24':n<35?'25-34':n<45?'35-44':n<55?'45-54':'55+'; };
+  const _pqPct=(n,d)=>d?Math.round(n/d*100)+'%':'—';
+  function wordCloud(id,items){
+    const el=document.getElementById(id); if(!el||!items.length) return;
+    const mx=items[0].count, mn=items[items.length-1].count;
+    const cols=['#E9C46A','#2FB0A0','#E07A5F','#F4A261','#c298ea','#8b7bef','#5eb0a0','#e0a75e'];
+    el.innerHTML=items.map((it,i)=>{ const t=(it.count-mn)/((mx-mn)||1), sz=(1+t*2.4).toFixed(2), op=(.55+t*.45).toFixed(2);
+      return `<span class="wcw" style="font-size:${sz}rem;color:${cols[i%cols.length]};opacity:${op}" title="${esc(it.label)}: ${it.count} (${(it.count/_pesq.length*100).toFixed(1)}%)">${esc(it.label)}</span>`;
+    }).join('');
+  }
+  function pqPie(id,items){
+    const el=document.getElementById(id); if(!el) return;
+    const cols=['#E9C46A','#2FB0A0','#E07A5F','#F4A261','#c298ea','#8b7bef','#5eb0a0','#7b5fd0'];
+    const tot=items.reduce((s,i)=>s+i.count,0)||1;
+    const lp={id:'l'+id,afterDatasetsDraw:function(ch){const c=ch.ctx,ds=ch.data.datasets[0].data,t=ds.reduce((s,v)=>s+v,0)||1;c.save();c.font='800 12px system-ui';c.textAlign='center';c.textBaseline='middle';ch.getDatasetMeta(0).data.forEach(function(a,i){const p=ds[i]/t*100;if(p<5)return;const ang=(a.startAngle+a.endAngle)/2,r=(a.innerRadius+a.outerRadius)/2;c.fillStyle='#0e1117';c.fillText(p.toFixed(0)+'%',a.x+Math.cos(ang)*r,a.y+Math.sin(ang)*r);});c.restore();}};
+    const cfg={type:'doughnut',data:{labels:items.map(i=>i.label.length>24?i.label.slice(0,23)+'…':i.label),datasets:[{data:items.map(i=>i.count),backgroundColor:cols,borderColor:'#161d29',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'right',labels:{color:'#c3ccd8',font:{size:11},boxWidth:11,padding:8}},tooltip:{callbacks:{label:c=>' '+c.label+': '+NUM(c.parsed)+' ('+(c.parsed/tot*100).toFixed(0)+'%)'}}}},plugins:[lp]};
+    _charts.push(new Chart(el,cfg));
+  }
+  function pqBar(id,items){
+    const el=document.getElementById(id); if(!el) return;
+    const vp={id:'v'+id,afterDatasetsDraw:function(ch){const c=ch.ctx;c.save();ch.getDatasetMeta(0).data.forEach(function(b,i){const v=ch.data.datasets[0].data[i];c.fillStyle='rgba(255,255,255,.85)';c.font='600 12px system-ui';c.textAlign='left';c.textBaseline='middle';c.fillText(v,b.x+6,b.y);});c.restore();}};
+    const cfg={type:'bar',data:{labels:items.map(i=>i.label.length>28?i.label.slice(0,27)+'…':i.label),datasets:[{data:items.map(i=>i.count),backgroundColor:'#E9C46Acc',borderRadius:5,barThickness:18}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.x+' respostas'}}},scales:{x:{display:false,beginAtZero:true},y:{grid:{display:false},ticks:{color:'#c3ccd8',font:{size:11}}}},layout:{padding:{right:34}}},plugins:[vp]};
+    _charts.push(new Chart(el,cfg));
+  }
   async function renderPesquisa(){
+    _charts.forEach(c=>{try{c.destroy();}catch(e){}});_charts=[];
     const b=document.getElementById('body');
     if(!_pesq){
       b.innerHTML='<div class="loading">Cargando encuesta…</div>';
-      try{ const t=await gvizOn(PESQUISA_SHEET,'gid=0'); _pesq=(t.rows||[]).filter(r=>r.c&&(r.c[3]&&cStr(r.c[3]))); }
+      try{ const t=await gvizOn(PESQUISA_SHEET,'gid=0'); _pesq=(t.rows||[]).filter(r=>r.c&&cStr(r.c[3])); }
       catch(e){ b.innerHTML='<div class="empty err">Erro ao carregar a pesquisa: '+esc(e.message)+'</div>'; return; }
     }
-    const N=_pesq.length;
-    // agregadores: idx da coluna -> normalizador
-    const agg=(idx,norm,top)=>{ const m={};
-      for(const r of _pesq){ let v=cStr(r.c[idx]); if(norm)v=norm(v); if(v==null||v==='')continue; m[v]=(m[v]||0)+1; }
-      let a=Object.entries(m).map(([k,c])=>({k,c})).sort((x,y)=>y.c-x.c); return top?a.slice(0,top):a; };
-    const bars=(title,items)=>{ const mx=Math.max(1,...items.map(i=>i.c));
-      return `<div class="pq-card"><div class="pq-t">${title}</div>${items.map(i=>`
-        <div class="pq-bar"><div class="pq-l" title="${esc(i.k)}">${esc(i.k)}</div>
-        <div class="pq-tk"><div class="pq-f" style="width:${Math.round(i.c/mx*100)}%"></div></div>
-        <div class="pq-n">${i.c} · ${Math.round(i.c/N*100)}%</div></div>`).join('')}</div>`; };
-    const _pais=v=>{ v=(v||'').trim(); const l=v.toLowerCase();
-      const map={'mexico':'México','méxico':'México','mx':'México','peru':'Peru','perú':'Perú','panama':'Panamá','panamá':'Panamá','colombia':'Colômbia','colômbia':'Colômbia','ecuador':'Equador','equador':'Equador','bolivia':'Bolívia','bolívia':'Bolívia','paraguay':'Paraguai','paraguai':'Paraguai','chile':'Chile','estados unidos':'EUA','usa':'EUA','united states':'EUA','argentina':'Argentina','venezuela':'Venezuela','españa':'Espanha','espanha':'Espanha'};
-      for(const k in map) if(l.includes(k)) return map[k];
-      return v||'—'; };
-    const _ing=v=>/fluid|fluent|comunico/i.test(v)?'Fluente':/practicar|necesito/i.test(v)?'Intermediário':/cuesta|poco/i.test(v)?'Básico':/no habl/i.test(v)?'Zero':(v||'—');
-    const _pass=v=>/^s[ií]/i.test(v)?'Sim':/^no/i.test(v)?'Não':(v||'—');
-    const _exp=v=>{v=(v||'').toLowerCase();return /más de 10|mas de 10|10\+/.test(v)?'10+ anos':/5 a 10/.test(v)?'5-10 anos':/2 a 5/.test(v)?'2-5 anos':/menos|1 a 2|0 a/.test(v)?'0-2 anos':(cStr0(v)||'—');};
-    let h='<div class="lbl">Pesquisa de qualificação · '+N+' respostas</div>';
-    h+='<div class="kpis" style="grid-template-columns:repeat(4,1fr)">'+
-      kpi('Respostas','k-good',NUM(N))+
-      kpi('Países','k-gold',NUM(agg(2,_pais).length))+
-      kpi('Inglês fluente','k-agave',PCT(div(agg(11,_ing).filter(x=>x.k==='Fluente').reduce((s,x)=>s+x.c,0),N)*100))+
-      kpi('Passaporte EU','k-terra',PCT(div(agg(10,_pass).filter(x=>x.k==='Sim').reduce((s,x)=>s+x.c,0),N)*100))+
-    '</div>';
-    h+='<div class="pq-grid">';
-    h+=bars('🌎 País onde vive', agg(2,_pais,10));
-    h+=bars('🗣️ Nível de inglês', agg(11,_ing));
-    h+=bars('💼 Área de atuação', agg(13,null,8));
-    h+=bars('⏳ Experiência profissional', agg(7,_exp));
-    h+=bars('🎓 Formação acadêmica', agg(8,null,7));
-    h+=bars('💰 Faixa salarial', agg(9,null,8));
-    h+=bars('🛂 Passaporte europeu', agg(10,_pass));
-    h+=bars('📅 Tempo que segue a Malu', agg(14,null,7));
-    h+='</div>';
-    b.innerHTML=h;
+    const N=_pesq.length, cnt=(i,p)=>_pesq.filter(r=>p(cStr(r.c[i]))).length;
+    const ing=cnt(11,v=>/fluid|fluent|comunico/i.test(v)), exp5=cnt(7,v=>/más de 10|mas de 10|5 a 10|5 años|10 años/i.test(v)),
+      pass=cnt(10,v=>/^s[ií]/i.test(v));
+    b.innerHTML=`<div class="lbl">Pesquisa de qualificação · ${NUM(N)} respostas · atualiza sozinho</div>
+      <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi k-good"><div class="kl">Respostas</div><div class="kv">${NUM(N)}</div></div>
+        <div class="kpi k-agave"><div class="kl">Inglês fluente</div><div class="kv">${_pqPct(ing,N)}</div></div>
+        <div class="kpi k-gold"><div class="kl">Exp. 5+ anos</div><div class="kv">${_pqPct(exp5,N)}</div></div>
+        <div class="kpi k-terra"><div class="kl">Tem passaporte UE</div><div class="kv">${_pqPct(pass,N)}</div></div>
+      </div>
+      <div class="pq-grid">
+        ${_pqCard('🌎 País onde vive','pqPais')}
+        ${_pqCard('🗣️ Nível de inglês','pqIng')}
+        ${_pqCard('💰 Faixa salarial','pqSal')}
+        ${_pqCard('⏳ Experiência profissional','pqExp')}
+        ${_pqCard('🎓 Formação acadêmica','pqForm')}
+        ${_pqCard('🎂 Idade','pqIda')}
+        ${_pqCard('🛂 Passaporte europeu','pqPass')}
+        ${_pqCard('👀 Tempo que segue','pqSeg')}
+        ${_pqCloud('💼 Área / profissão','pqProf')}
+      </div>`;
+    pqBar('pqPais',_pqAgg(2,10,_pqPais));
+    pqPie('pqIng',_pqAgg(11,null,_pqIng));
+    pqPie('pqSal',_pqAgg(9,null));
+    pqBar('pqExp',_pqAgg(7));
+    pqBar('pqForm',_pqAgg(8,7));
+    pqBar('pqIda',_pqAgg(4,null,_pqIda).sort((a,b)=>a.label.localeCompare(b.label)));
+    pqPie('pqPass',_pqAgg(10,null,_pqSN));
+    pqBar('pqSeg',_pqAgg(14,7));
+    wordCloud('pqProf',_pqAgg(13,14,_pqProf));
     document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   }
-  const cStr0=v=>v==null?'':String(v);
   function doSort(k){if(_sort.key===k)_sort.dir=-_sort.dir;else{_sort.key=k;_sort.dir=-1;}render();}
 
   // gauge SVG semicircular
