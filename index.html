@@ -94,14 +94,37 @@
   .lbl::after{content:'';flex:1;height:1px;background:var(--border);}
 
   /* KPI strip */
-  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
-  @media(max-width:820px){.kpis{grid-template-columns:repeat(3,1fr);}}
-  @media(max-width:460px){.kpis{grid-template-columns:repeat(2,1fr);}}
+  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(4,1fr);}}
+  @media(max-width:560px){.kpis{grid-template-columns:repeat(2,1fr);}}
   .kpi{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:14px 15px;border-top:2px solid var(--border);}
   .kpi .kl{font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--sub);}
   .kpi .kv{font-family:var(--disp);font-size:1.4rem;font-weight:800;margin-top:5px;}
   .kpi.k-gold{border-top-color:var(--gold);} .kpi.k-agave{border-top-color:var(--agave);}
   .kpi.k-terra{border-top-color:var(--terra);} .kpi.k-good .kv{color:var(--good);}
+
+  /* pesquisa */
+  .pq-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:760px){.pq-grid{grid-template-columns:1fr;}}
+  .pq-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;}
+  .pq-t{font-size:.82rem;font-weight:800;margin-bottom:12px;color:var(--soft);}
+  .pq-bar{display:grid;grid-template-columns:130px 1fr 78px;align-items:center;gap:10px;margin-bottom:7px;}
+  .pq-l{font-size:.74rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .pq-tk{height:14px;background:#0c1219;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+  .pq-f{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--gold),var(--terra));}
+  .pq-n{font-size:.72rem;color:var(--soft);font-weight:700;text-align:right;font-family:var(--disp);}
+  @media(max-width:460px){.pq-bar{grid-template-columns:90px 1fr 60px;}}
+
+  /* landing pages */
+  .lps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  @media(max-width:760px){.lps{grid-template-columns:1fr;}}
+  .lpcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--pc,var(--gold));border-radius:13px;padding:13px 16px;text-decoration:none;color:var(--text);transition:.15s;}
+  .lpcard:hover{border-color:var(--pc,var(--gold));transform:translateY(-2px);}
+  .lpflag{font-size:1.4rem;}
+  .lpinfo{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .lpn{font-weight:800;font-size:.92rem;}
+  .lpu{font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lparr{color:var(--sub);font-weight:700;}
 
   /* país cards */
   .paises{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
@@ -161,6 +184,10 @@
   </header>
 
   <div class="toolbar">
+    <div class="seg" id="segView">
+      <button class="on" data-v="trafego" onclick="setView(this)">📊 Tráfego</button>
+      <button data-v="pesquisa" onclick="setView(this)">📋 Pesquisa</button>
+    </div>
     <div class="seg" id="segPais">
       <button class="on" data-p="all" onclick="setPais(this)">Todos</button>
       <button data-p="Mexico" onclick="setPais(this)">🇲🇽 México</button>
@@ -202,6 +229,12 @@
   const META_INV_USD=3000;
   const CAP_INI=new Date(2026,7,31);   // 31/08
   const CAP_FIM=new Date(2026,8,20);   // 20/09 (fim da captação / abre carrinho)
+  const PESQUISA_SHEET='1i-Q2Xlh6W4IqPu2tRjZyQYHaBrYJrHe4HXXp3lCtQJM';  // pesquisa de qualificação
+  const LPS=[
+    {nm:'Geral',   fl:'🌎', col:'var(--terra)', url:'https://hire-international.com/es/masterclass-el-mapa-internacional-ads-geral/'},
+    {nm:'México',  fl:'🇲🇽', col:'var(--gold)',  url:'https://hire-international.com/es/masterclass-el-mapa-internacional-ads-mex/'},
+    {nm:'Colômbia',fl:'🇨🇴', col:'var(--agave)', url:'https://hire-international.com/es/masterclass-el-mapa-internacional-ads-colombia/'},
+  ];
 
   let DATA=[], _pais='all', _charts=[], _sort={key:'inv',dir:-1};
   let _presetDays='all', _fStart=null, _fEnd=null;
@@ -296,6 +329,62 @@
     return base;
   }
   function setPais(el){document.querySelectorAll('#segPais button').forEach(b=>b.classList.remove('on'));el.classList.add('on');_pais=el.dataset.p;render();}
+  let _view='trafego', _pesq=null;
+  function setView(el){
+    document.querySelectorAll('#segView button').forEach(b=>b.classList.remove('on'));el.classList.add('on');
+    _view=el.dataset.v;
+    // Pesquisa é geral (não filtra por país); esconde o seletor de país e datas nela
+    const hide=_view==='pesquisa';
+    document.getElementById('segPais').style.display=hide?'none':'';
+    const db=document.querySelector('.datebar'); if(db) db.style.display=hide?'none':'';
+    if(hide) renderPesquisa(); else render();
+  }
+  // ── Pesquisa de qualificação ────────────────────────────────────────────────
+  async function renderPesquisa(){
+    const b=document.getElementById('body');
+    if(!_pesq){
+      b.innerHTML='<div class="loading">Cargando encuesta…</div>';
+      try{ const t=await gvizOn(PESQUISA_SHEET,'gid=0'); _pesq=(t.rows||[]).filter(r=>r.c&&(r.c[3]&&cStr(r.c[3]))); }
+      catch(e){ b.innerHTML='<div class="empty err">Erro ao carregar a pesquisa: '+esc(e.message)+'</div>'; return; }
+    }
+    const N=_pesq.length;
+    // agregadores: idx da coluna -> normalizador
+    const agg=(idx,norm,top)=>{ const m={};
+      for(const r of _pesq){ let v=cStr(r.c[idx]); if(norm)v=norm(v); if(v==null||v==='')continue; m[v]=(m[v]||0)+1; }
+      let a=Object.entries(m).map(([k,c])=>({k,c})).sort((x,y)=>y.c-x.c); return top?a.slice(0,top):a; };
+    const bars=(title,items)=>{ const mx=Math.max(1,...items.map(i=>i.c));
+      return `<div class="pq-card"><div class="pq-t">${title}</div>${items.map(i=>`
+        <div class="pq-bar"><div class="pq-l" title="${esc(i.k)}">${esc(i.k)}</div>
+        <div class="pq-tk"><div class="pq-f" style="width:${Math.round(i.c/mx*100)}%"></div></div>
+        <div class="pq-n">${i.c} · ${Math.round(i.c/N*100)}%</div></div>`).join('')}</div>`; };
+    const _pais=v=>{ v=(v||'').trim(); const l=v.toLowerCase();
+      const map={'mexico':'México','méxico':'México','mx':'México','peru':'Peru','perú':'Perú','panama':'Panamá','panamá':'Panamá','colombia':'Colômbia','colômbia':'Colômbia','ecuador':'Equador','equador':'Equador','bolivia':'Bolívia','bolívia':'Bolívia','paraguay':'Paraguai','paraguai':'Paraguai','chile':'Chile','estados unidos':'EUA','usa':'EUA','united states':'EUA','argentina':'Argentina','venezuela':'Venezuela','españa':'Espanha','espanha':'Espanha'};
+      for(const k in map) if(l.includes(k)) return map[k];
+      return v||'—'; };
+    const _ing=v=>/fluid|fluent|comunico/i.test(v)?'Fluente':/practicar|necesito/i.test(v)?'Intermediário':/cuesta|poco/i.test(v)?'Básico':/no habl/i.test(v)?'Zero':(v||'—');
+    const _pass=v=>/^s[ií]/i.test(v)?'Sim':/^no/i.test(v)?'Não':(v||'—');
+    const _exp=v=>{v=(v||'').toLowerCase();return /más de 10|mas de 10|10\+/.test(v)?'10+ anos':/5 a 10/.test(v)?'5-10 anos':/2 a 5/.test(v)?'2-5 anos':/menos|1 a 2|0 a/.test(v)?'0-2 anos':(cStr0(v)||'—');};
+    let h='<div class="lbl">Pesquisa de qualificação · '+N+' respostas</div>';
+    h+='<div class="kpis" style="grid-template-columns:repeat(4,1fr)">'+
+      kpi('Respostas','k-good',NUM(N))+
+      kpi('Países','k-gold',NUM(agg(2,_pais).length))+
+      kpi('Inglês fluente','k-agave',PCT(div(agg(11,_ing).filter(x=>x.k==='Fluente').reduce((s,x)=>s+x.c,0),N)*100))+
+      kpi('Passaporte EU','k-terra',PCT(div(agg(10,_pass).filter(x=>x.k==='Sim').reduce((s,x)=>s+x.c,0),N)*100))+
+    '</div>';
+    h+='<div class="pq-grid">';
+    h+=bars('🌎 País onde vive', agg(2,_pais,10));
+    h+=bars('🗣️ Nível de inglês', agg(11,_ing));
+    h+=bars('💼 Área de atuação', agg(13,null,8));
+    h+=bars('⏳ Experiência profissional', agg(7,_exp));
+    h+=bars('🎓 Formação acadêmica', agg(8,null,7));
+    h+=bars('💰 Faixa salarial', agg(9,null,8));
+    h+=bars('🛂 Passaporte europeu', agg(10,_pass));
+    h+=bars('📅 Tempo que segue a Malu', agg(14,null,7));
+    h+='</div>';
+    b.innerHTML=h;
+    document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
+  const cStr0=v=>v==null?'':String(v);
   function doSort(k){if(_sort.key===k)_sort.dir=-_sort.dir;else{_sort.key=k;_sort.dir=-1;}render();}
 
   // gauge SVG semicircular
@@ -366,6 +455,7 @@
       kpi('CPL (R$)','k-gold',BRL(cplR))+
       kpi('Investido (R$)','k-terra',BRL(costR))+
       kpi('Cliques','k-agave',NUM(clk))+
+      kpi('Connect Rate','',PCT(div(pv,clk)*100))+
       kpi('CPM (R$)','',BRL(cpm))+
     '</div>';
 
@@ -374,18 +464,25 @@
       h+='<div class="lbl">Por país</div><div class="paises">';
       for(const p of paisesAtivos()){
         const pr=DATA.filter(r=>r.pais===p&&inRange(r.date));
-        const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0), pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0);
+        const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0), pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0), ppv=pr.reduce((s,r)=>s+r.pv,0);
         const m=paisMeta[p];
         h+=`<div class="pcard" style="--pc:${m.col}">
           <div class="ph"><span class="pflag">${m.fl}</span><span class="pn">${m.nm}<small>${pr.length} criativos</small></span></div>
           <div class="prow"><span class="pk">Leads</span><span class="pvv">${NUM(pl)}</span></div>
           <div class="prow"><span class="pk">Investido</span><span class="pvv">${BRL(pc*COT)}</span></div>
           <div class="prow"><span class="pk">CTR</span><span class="pvv">${PCT(div(pk,pi)*100)}</span></div>
+          <div class="prow"><span class="pk">Connect Rate</span><span class="pvv">${PCT(div(ppv,pk)*100)}</span></div>
           <div class="prow"><span class="pk">CPL</span><span class="cplbig" style="color:${m.col}">${USD(div(pc,pl))}</span></div>
         </div>`;
       }
       h+='</div>';
     }
+
+    // Landing pages por país
+    h+='<div class="lbl">Landing pages · El Mapa Internacional</div><div class="lps">';
+    for(const lp of LPS){ h+=`<a class="lpcard" href="${lp.url}" target="_blank" style="--pc:${lp.col}">
+      <span class="lpflag">${lp.fl}</span><div class="lpinfo"><span class="lpn">${lp.nm}</span><span class="lpu">${lp.url.replace('https://hire-international.com','')}</span></div><span class="lparr">↗</span></a>`; }
+    h+='</div>';
 
     // funil + leads/dia
     h+='<div class="lbl">Funil & evolução</div><div class="charts2">'+
