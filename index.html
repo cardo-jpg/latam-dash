@@ -123,6 +123,30 @@
   .lpu{font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .lparr{color:var(--sub);font-weight:700;}
 
+  /* país — painéis de funil (estilo LP da WICI) */
+  .pfunnels{display:flex;flex-direction:column;gap:22px;}
+  .pfp{background:linear-gradient(165deg,var(--card2),var(--card));border:1px solid var(--border);border-radius:16px;padding:20px 22px;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+  .pfp-hd{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+  .pfp-hl{display:flex;align-items:center;gap:10px;}
+  .pfp-fl{font-size:1.5rem;}
+  .pfp-nm{font-size:1.15rem;font-weight:800;}
+  .pfp-sub{font-size:.72rem;color:var(--sub);}
+  .pfp-r{display:flex;gap:26px;flex-wrap:wrap;}
+  .pfp-ml{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
+  .pfp-mv{font-family:var(--disp);font-size:1.35rem;font-weight:800;margin-top:2px;}
+  .pfp-body{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;}
+  @media(max-width:820px){.pfp-body{grid-template-columns:1fr;}}
+  .fn{display:flex;flex-direction:column;gap:5px;}
+  .fn-seg{height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .fn-lbl{font-size:.64rem;font-weight:700;letter-spacing:.06em;color:rgba(255,255,255,.8);}
+  .fn-val{font-family:var(--disp);font-size:1.45rem;font-weight:800;color:#fff;margin-top:2px;}
+  .fn-rate{text-align:center;margin:1px 0;}
+  .fn-pill{display:inline-block;font-size:.68rem;font-weight:700;color:var(--soft);background:var(--bg2);border:1px solid var(--border);padding:4px 13px;border-radius:20px;}
+  .pfp-charts{display:flex;flex-direction:column;gap:14px;}
+  .pfp-cc{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .pfp-ct{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin-bottom:6px;}
+  .pfp-ch{position:relative;height:130px;}
+
   /* país cards */
   .paises{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
   @media(max-width:760px){.paises{grid-template-columns:1fr;}}
@@ -488,21 +512,50 @@
       kpi('CPM (R$)','',BRL(cpm))+
     '</div>';
 
-    // países (só no modo Todos)
+    // países — painéis de funil (estilo LP da WICI). Só no modo Todos.
+    const _funJobs=[];
     if(_pais==='all'){
-      h+='<div class="lbl">Por país</div><div class="paises">';
+      h+='<div class="lbl">Funil por país</div><div class="pfunnels">';
+      let fi=0;
       for(const p of paisesAtivos()){
         const pr=DATA.filter(r=>r.pais===p&&inRange(r.date));
-        const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0), pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0), ppv=pr.reduce((s,r)=>s+r.pv,0);
+        const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0),
+          pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0), ppv=pr.reduce((s,r)=>s+r.pv,0);
         const m=paisMeta[p];
-        h+=`<div class="pcard" style="--pc:${m.col}">
-          <div class="ph"><span class="pflag">${m.fl}</span><span class="pn">${m.nm}<small>${pr.length} criativos</small></span></div>
-          <div class="prow"><span class="pk">Leads</span><span class="pvv">${NUM(pl)}</span></div>
-          <div class="prow"><span class="pk">Investido</span><span class="pvv">${BRL(pc*COT)}</span></div>
-          <div class="prow"><span class="pk">CTR</span><span class="pvv">${PCT(div(pk,pi)*100)}</span></div>
-          <div class="prow"><span class="pk">Connect Rate</span><span class="pvv">${PCT(div(ppv,pk)*100)}</span></div>
-          <div class="prow"><span class="pk">CPL</span><span class="cplbig" style="color:${m.col}">${USD(div(pc,pl))}</span></div>
+        // funil: Impressões → Cliques → Page View → Leads
+        const steps=[
+          {n:'IMPRESSÕES', v:pi, wt:100, wb:78, rate:'CTR '+PCT(div(pk,pi)*100)},
+          {n:'CLIQUES',    v:pk, wt:76,  wb:54, rate:'CONNECT '+PCT(div(ppv,pk)*100)},
+          {n:'PAGE VIEW',  v:ppv,wt:52,  wb:34, rate:'CONVERSÃO '+PCT(Math.min(100,div(pl,ppv)*100))},
+          {n:'LEADS',      v:pl, wt:32,  wb:22, rate:''},
+        ];
+        const hue={Mexico:43,Colombia:170,Peru:28,Geral:12}[p]||280;
+        let fn='<div class="fn">';
+        for(let si=0;si<steps.length;si++){ const s=steps[si];
+          const tl=(100-s.wt)/2,tr=(100+s.wt)/2,br=(100+s.wb)/2,bl=(100-s.wb)/2; const L=42+si*8;
+          fn+=`<div class="fn-seg" style="clip-path:polygon(${tl}% 0,${tr}% 0,${br}% 100%,${bl}% 100%);background:linear-gradient(180deg,hsla(${hue},55%,${L}%,.92),hsla(${hue},55%,${L-8}%,.86))"><div class="fn-lbl">${s.n}</div><div class="fn-val">${NUM(s.v)}</div></div>`;
+          if(s.rate) fn+=`<div class="fn-rate"><span class="fn-pill">${s.rate}</span></div>`;
+        }
+        fn+='</div>';
+        h+=`<div class="pfp" style="border-top:2px solid ${m.col}">
+          <div class="pfp-hd">
+            <div class="pfp-hl"><span class="pfp-fl">${m.fl}</span><div><div class="pfp-nm">${m.nm}</div><div class="pfp-sub">${pr.length} criativos</div></div></div>
+            <div class="pfp-r">
+              <div><div class="pfp-ml">Investido</div><div class="pfp-mv">${BRL(pc*COT)}</div></div>
+              <div><div class="pfp-ml">Leads</div><div class="pfp-mv">${NUM(pl)}</div></div>
+              <div><div class="pfp-ml">CPL</div><div class="pfp-mv" style="color:${m.col}">${pl?USD(div(pc,pl)):'—'}</div></div>
+            </div>
+          </div>
+          <div class="pfp-body">
+            <div>${fn}</div>
+            <div class="pfp-charts">
+              <div class="pfp-cc"><div class="pfp-ct">Connect Rate por dia</div><div class="pfp-ch"><canvas id="pf_c${fi}"></canvas></div></div>
+              <div class="pfp-cc"><div class="pfp-ct">Leads por dia</div><div class="pfp-ch"><canvas id="pf_l${fi}"></canvas></div></div>
+            </div>
+          </div>
         </div>`;
+        _funJobs.push({fi, rows:pr, col:m.col});
+        fi++;
       }
       h+='</div>';
     }
@@ -519,14 +572,6 @@
       '<div class="chart-card"><div class="chart-title">Leads por dia · CPL</div><div class="chart-box"><canvas id="cDia"></canvas></div></div>'+
     '</div>';
 
-    // leads por país (barra) — só no Todos
-    if(_pais==='all'){
-      h+='<div class="lbl">Distribuição por país</div><div class="charts2">'+
-        '<div class="chart-card"><div class="chart-title">Leads por país</div><div class="chart-box"><canvas id="cPais"></canvas></div></div>'+
-        '<div class="chart-card"><div class="chart-title">CPL por país (US$)</div><div class="chart-box"><canvas id="cCpl"></canvas></div></div>'+
-      '</div>';
-    }
-
     // tabela criativos
     h+='<div class="lbl">Criativos</div><div class="tbl-box"><div class="tbl-scroll"><table><thead><tr>'+
       th('anuncio','Criativo',1)+th('pais','País')+th('status','Status')+th('imp','Impr.')+th('ctr','CTR')+th('clk','Cliques')+th('leads','Leads')+th('cpl','CPL')+th('inv','Investido')+'<th>Link</th>'+
@@ -537,8 +582,22 @@
 
     drawFunnel(imp,clk,pv,leads);
     drawDia(rows);
-    if(_pais==='all'){drawPais();drawCpl();}
+    if(_pais==='all'){ _funJobs.forEach(j=>drawFunnelCharts(j)); }
     fillTable(rows);
+  }
+  // gráficos por dia de um país no painel de funil: Connect Rate (%) e Leads
+  function drawFunnelCharts(job){
+    const by={};
+    for(const r of job.rows){ const k=r.date.getFullYear()+'-'+String(r.date.getMonth()+1).padStart(2,'0')+'-'+String(r.date.getDate()).padStart(2,'0'); const o=by[k]||(by[k]={clk:0,pv:0,leads:0}); o.clk+=r.clk;o.pv+=r.pv;o.leads+=r.leads; }
+    const ks=Object.keys(by).sort(), lbls=ks.map(k=>{const p=k.split('-');return p[2]+'/'+p[1];});
+    const cr=ks.map(k=>by[k].clk?+(by[k].pv/by[k].clk*100).toFixed(1):null);
+    const ld=ks.map(k=>by[k].leads);
+    const elC=document.getElementById('pf_c'+job.fi);
+    if(elC) _charts.push(new Chart(elC,{type:'line',data:{labels:lbls,datasets:[{data:cr,borderColor:job.col,backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.3,spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+PCT(c.parsed.y)}}},scales:{x:{...AX,grid:{display:false},ticks:{color:'#8a97a8',font:{size:9},maxTicksLimit:8}},y:{...AX,beginAtZero:true,ticks:{color:'#8a97a8',font:{size:9},callback:v=>v+'%'}}}}}));
+    const elL=document.getElementById('pf_l'+job.fi);
+    if(elL) _charts.push(new Chart(elL,{type:'bar',data:{labels:lbls,datasets:[{data:ld,backgroundColor:job.col+'99',borderColor:job.col,borderWidth:1,borderRadius:4,maxBarThickness:26}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y+' leads'}}},scales:{x:{...AX,grid:{display:false},ticks:{color:'#8a97a8',font:{size:9},maxTicksLimit:8}},y:{...AX,beginAtZero:true,ticks:{color:'#8a97a8',font:{size:9}}}}}}));
   }
 
   function kpi(l,cls,v){return `<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
