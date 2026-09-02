@@ -624,31 +624,34 @@
   // Leads REAIS por país por dia (planilha oficial). Colunas:
   // [0]DATA [2]ORG [5]ADS COLOMBIA [6]ADS MEXICO [7]ADS PERU [8]ADS GERAL
   // Devolve mapa 'YYYY-MM-DD|Pais' -> leads.
+  // A planilha traz o TOTAL de leads de cada dia por país. Usamos a ÚLTIMA linha com
+  // dado (o dia mais recente da captação) — não a soma dos dias — porque é o número
+  // "oficial" atual do lançamento (ex.: 01/09 = 471). Devolve { dk, byPais:{Pais:n} }.
   function parseLeadsOficial(t){
-    const map={};
+    let ultimo=null;
     for(const r of (t.rows||[])){
       const c=r.c||[]; const d=cDate(c[0]); if(!d) continue;
+      const co=cNum(c[5]), mx=cNum(c[6]), pe=cNum(c[7]), ge=cNum(c[8]);
+      if(co+mx+pe+ge<=0) continue;   // dia sem lead ainda → ignora
       const dk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      const put=(p,v)=>{ v=cNum(v); if(v>0) map[dk+'|'+p]=(map[dk+'|'+p]||0)+v; };
-      put('Colombia',c[5]); put('Mexico',c[6]); put('Peru',c[7]); put('Geral',c[8]);
+      ultimo={ dk, byPais:{Colombia:co, Mexico:mx, Peru:pe, Geral:ge} };
     }
-    return map;
+    return ultimo;   // ou null se não houver dado
   }
-  // Distribui os leads REAIS de cada (dia,país) entre os criativos daquele dia/país,
-  // proporcional aos cliques. Igual à WICI: a fonte de venda/lead é a planilha oficial.
-  function aplicarLeadsReais(rows, leadMap){
-    // zera os leads que vieram da planilha de investimento (estava furada)
-    rows.forEach(r=>{ r.leads=0; });
-    // agrupa índices por dia|país
-    const grp={};
-    rows.forEach((r,i)=>{ const dk=r.date.getFullYear()+'-'+String(r.date.getMonth()+1).padStart(2,'0')+'-'+String(r.date.getDate()).padStart(2,'0'); (grp[dk+'|'+r.pais]=grp[dk+'|'+r.pais]||[]).push(i); });
-    for(const key in leadMap){
-      const total=leadMap[key]; const idxs=grp[key]; if(!idxs||!idxs.length){ continue; }
+  // Sobrepõe os leads REAIS (total oficial por país) nos criativos, distribuídos
+  // proporcional aos cliques de cada criativo do país. Total por país = número da
+  // planilha oficial; total geral = soma dos países (ex.: 120+190+0+161 = 471).
+  function aplicarLeadsReais(rows, dados){
+    rows.forEach(r=>{ r.leads=0; });          // zera os leads furados da planilha de investimento
+    if(!dados) return;
+    const byPais=dados.byPais;
+    for(const pais in byPais){
+      const total=byPais[pais]; if(total<=0) continue;
+      const idxs=rows.map((r,i)=>({r,i})).filter(o=>o.r.pais===pais).map(o=>o.i);
+      if(!idxs.length) continue;
       const clk=idxs.map(i=>rows[i].clk||0); const clkTot=clk.reduce((a,b)=>a+b,0);
-      if(clkTot<=0){ // sem cliques → distribui igual
-        const base=Math.floor(total/idxs.length); let resto=total-base*idxs.length;
-        idxs.forEach((i,j)=>{ rows[i].leads=base+(j<resto?1:0); }); continue;
-      }
+      if(clkTot<=0){ const base=Math.floor(total/idxs.length); let resto=total-base*idxs.length;
+        idxs.forEach((i,j)=>{ rows[i].leads=base+(j<resto?1:0); }); continue; }
       const raw=idxs.map((i,j)=>clk[j]/clkTot*total);
       const base=raw.map(x=>Math.floor(x)); let resto=total-base.reduce((a,b)=>a+b,0);
       const ord=raw.map((x,j)=>({j,f:x-Math.floor(x)})).sort((a,b)=>b.f-a.f);
