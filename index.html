@@ -355,9 +355,10 @@
   function setView(el){
     document.querySelectorAll('#segView button').forEach(b=>b.classList.remove('on'));el.classList.add('on');
     _view=el.dataset.v;
-    // Pesquisa é geral (não filtra por país); Páginas mostra os 3 países juntos.
+    // Só a aba Tráfego tem seletor de país e filtro de data. Páginas e Pesquisa usam
+    // o acumulado (os leads oficiais são snapshot; filtrar por dia descasaria o funil).
     document.getElementById('segPais').style.display=(_view==='trafego')?'':'none';
-    const db=document.querySelector('.datebar'); if(db) db.style.display=(_view==='pesquisa')?'none':'';
+    const db=document.querySelector('.datebar'); if(db) db.style.display=(_view==='trafego')?'':'none';
     if(_view==='pesquisa') renderPesquisa();
     else if(_view==='paginas') renderPaginas();
     else render();
@@ -544,7 +545,7 @@
     // casa cada país à sua LP (Geral/México/Colômbia). Peru cai no Geral por ora.
     const lpDe={Mexico:LPS[1],Colombia:LPS[2],Geral:LPS[0],Peru:LPS[0]};
     for(const p of paisesAtivos()){
-      const pr=DATA.filter(r=>r.pais===p&&inRange(r.date));
+      const pr=DATA.filter(r=>r.pais===p);   // sem filtro de data: leads são acumulado oficial
       const pc=pr.reduce((s,r)=>s+r.cost,0), pl=pr.reduce((s,r)=>s+r.leads,0),
         pk=pr.reduce((s,r)=>s+r.clk,0), pi=pr.reduce((s,r)=>s+r.imp,0), ppv=pr.reduce((s,r)=>s+r.pv,0);
       const m=paisMeta[p], lp=lpDe[p]||LPS[0];
