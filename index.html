@@ -103,6 +103,12 @@
   .kpi.k-gold{border-top-color:var(--gold);} .kpi.k-agave{border-top-color:var(--agave);}
   .kpi.k-terra{border-top-color:var(--terra);} .kpi.k-good .kv{color:var(--good);}
 
+  /* tabela poder de compra */
+  .pq-tbl{width:100%;border-collapse:collapse;font-size:.86rem;}
+  .pq-tbl th{font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--sub);padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);}
+  .pq-tbl td{padding:11px 12px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04);color:var(--soft);}
+  .pq-tbl tbody tr:hover{background:rgba(255,255,255,.02);}
+
   /* pesquisa (padrão WICI: cards com gráficos) */
   .pq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;}
   .pq-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
@@ -409,6 +415,49 @@
     const cfg={type:'bar',data:{labels:items.map(i=>i.label.length>28?i.label.slice(0,27)+'…':i.label),datasets:[{data:items.map(i=>i.count),backgroundColor:'#E9C46Acc',borderRadius:5,barThickness:18}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.x+' respostas'}}},scales:{x:{display:false,beginAtZero:true},y:{grid:{display:false},ticks:{color:'#c3ccd8',font:{size:11}}}},layout:{padding:{right:34}}},plugins:[vp]};
     _charts.push(new Chart(el,cfg));
   }
+  // Salário → nível de poder de compra p/ pagar a mentoria (R$ ~2,5k).
+  // baixo = <1000 USD · medio = 1000-2000 · bom = 2000+ (comprador provável)
+  const _salTier=v=>{ v=(v||'').toLowerCase();
+    if(/más de 5000|mas de 5000|3501|2001|2000\s*-\s*3|3500/.test(v)) return 'bom';
+    if(/1000\s*-\s*2000/.test(v)) return 'medio';
+    if(/menos de 1000|menos de 500|500\s*-\s*1000/.test(v)) return 'baixo';
+    return 'na'; };
+  const _isDesemp=v=>/desemple/i.test(v||'');
+  // Tabela: poder de compra POR PAÍS — indicador ANTECIPADO (quem CONSEGUE comprar),
+  // pra decidir verba durante a captação sem esperar o dia da venda.
+  function pqPoderCompra(){
+    const by={};
+    for(const r of _pesq){ const c=r.c;
+      const pais=_pqPais(cStr(c[2])); if(!pais||pais==='—') continue;
+      const o=by[pais]||(by[pais]={n:0,bom:0,baixo:0,desemp:0,fluente:0});
+      o.n++; const t=_salTier(cStr(c[9]));
+      if(t==='bom')o.bom++; if(t==='baixo')o.baixo++;
+      if(_isDesemp(cStr(c[13])))o.desemp++;
+      if(/fluid|fluent|comunico con flu/i.test(cStr(c[11])))o.fluente++;
+    }
+    const list=Object.entries(by).map(([p,o])=>({p,...o,pctBom:o.bom/o.n*100,pctBaixo:o.baixo/o.n*100,pctDes:o.desemp/o.n*100}))
+      .filter(x=>x.n>=2).sort((a,b)=>b.n-a.n);
+    if(!list.length) return '';
+    const flag=x=>{ // veredito: verde=escalar, amarelo=observar, vermelho=segurar
+      if(x.pctBom>=35 && x.pctDes<=25) return ['#42d392','🟢 Escalar'];
+      if(x.pctBom>=20) return ['#f0b429','🟡 Observar'];
+      return ['#ef5f6b','🔴 Segurar']; };
+    const rows=list.map(x=>{ const [col,txt]=flag(x);
+      return `<tr>
+        <td style="text-align:left;font-weight:700">${x.p}</td>
+        <td>${x.n}</td>
+        <td style="color:${x.pctBom>=30?'#42d392':'var(--soft)'}">${Math.round(x.pctBom)}%</td>
+        <td style="color:${x.pctBaixo>=40?'#ef5f6b':'var(--soft)'}">${Math.round(x.pctBaixo)}%</td>
+        <td style="color:${x.pctDes>=30?'#ef5f6b':'var(--soft)'}">${Math.round(x.pctDes)}%</td>
+        <td>${Math.round(x.fluente/x.n*100)}%</td>
+        <td style="color:${col};font-weight:700;white-space:nowrap">${txt}</td>
+      </tr>`; }).join('');
+    return `<div class="lbl" style="margin-top:26px">💳 Poder de compra por país <span style="color:var(--sub);font-weight:600;text-transform:none;letter-spacing:0">· indicador antecipado (quem consegue pagar a mentoria)</span></div>
+      <div class="tbl-box"><div class="tbl-scroll"><table class="pq-tbl"><thead><tr>
+        <th style="text-align:left">País</th><th>Respostas</th><th>Ganha 2000 USD+</th><th>Ganha &lt;1000</th><th>Desempregado</th><th>Inglês fluente</th><th>Sinal</th>
+      </tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div style="font-size:.74rem;color:var(--sub);margin-top:8px;line-height:1.5">🟢 escalar (bom poder de compra) · 🟡 observar · 🔴 segurar verba (muito desempregado / renda baixa). Base: faixa salarial + situação de emprego da pesquisa — não espera o dia da venda.</div>`;
+  }
   async function renderPesquisa(){
     _charts.forEach(c=>{try{c.destroy();}catch(e){}});_charts=[];
     const b=document.getElementById('body');
@@ -427,6 +476,7 @@
         <div class="kpi k-gold"><div class="kl">Exp. 5+ anos</div><div class="kv">${_pqPct(exp5,N)}</div></div>
         <div class="kpi k-terra"><div class="kl">Tem passaporte UE</div><div class="kv">${_pqPct(pass,N)}</div></div>
       </div>
+      ${pqPoderCompra()}
       <div class="pq-grid">
         ${_pqCard('🌎 País onde vive','pqPais')}
         ${_pqCard('🗣️ Nível de inglês','pqIng')}
