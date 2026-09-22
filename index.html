@@ -215,6 +215,8 @@
       <button class="on" data-v="trafego" onclick="setView(this)">📊 Tráfego</button>
       <button data-v="paginas" onclick="setView(this)">🌐 Páginas</button>
       <button data-v="pesquisa" onclick="setView(this)">📋 Pesquisa</button>
+      <button data-v="lembrete" onclick="setView(this)">🔔 Lembrete</button>
+      <button data-v="replay" onclick="setView(this)">🔁 Replay</button>
     </div>
     <div class="seg" id="segPais">
       <button class="on" data-p="all" onclick="setPais(this)">Todos</button>
@@ -375,6 +377,8 @@
     const db=document.querySelector('.datebar'); if(db) db.style.display=(_view==='trafego')?'':'none';
     if(_view==='pesquisa') renderPesquisa();
     else if(_view==='paginas') renderPaginas();
+    else if(_view==='lembrete') renderLR('lembrete');
+    else if(_view==='replay') renderLR('replay');
     else render();
   }
   // ── Pesquisa de qualificação (padrão WICI: cards com gráficos Chart.js) ───────
@@ -665,6 +669,86 @@
     const elL=document.getElementById('pf_l'+job.fi);
     if(elL) _charts.push(new Chart(elL,{type:'bar',data:{labels:lbls,datasets:[{data:ld,backgroundColor:job.col+'99',borderColor:job.col,borderWidth:1,borderRadius:4,maxBarThickness:26}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y+' leads'}}},scales:{x:{...AX,grid:{display:false},ticks:{color:'#8a97a8',font:{size:9},maxTicksLimit:8}},y:{...AX,beginAtZero:true,ticks:{color:'#8a97a8',font:{size:9}}}}}}));
+  }
+
+  // ── Abas LEMBRETE / REPLAY (planilha nova: colunas Date|Campaign|Adset|Anuncio|Cost|Impr|Cliques|PageView|...|URL) ──
+  function rowsParseLR(t){
+    const out=[];
+    for(const r of (t.rows||[])){
+      const c=r.c||[]; const d=cDate(c[0]); if(!d) continue;
+      out.push({date:d, campanha:cStr(c[1]), adset:cStr(c[2]), anuncio:cStr(c[3]),
+        cost:cNum(c[4]), imp:cNum(c[5]), clk:cNum(c[6]), pv:cNum(c[7]),
+        link:cStr(c[13])});
+    }
+    return out;
+  }
+  async function renderLR(kind){
+    _charts.forEach(c=>{try{c.destroy();}catch(e){}});_charts=[];
+    document.getElementById('body').innerHTML='<div class="loading">Cargando…</div>';
+    try{
+      const aba = kind==='replay' ? 'Replay' : 'Lembrete';
+      const t = await gviz('sheet='+encodeURIComponent(aba)+'&_cb='+Date.now());
+      const rows = rowsParseLR(t);
+      if(!rows.length){document.getElementById('body').innerHTML='<div class="empty">Sem dados na aba '+aba+' ainda.</div>';return;}
+      const S=k=>rows.reduce((s,r)=>s+(r[k]||0),0);
+      const cost=S('cost'), imp=S('imp'), clk=S('clk'), pv=S('pv');
+      const costR=cost*COT, ctr=div(clk,imp)*100, cpc=div(cost,clk), cpm=div(costR,imp)*1000;
+      const titulo = kind==='replay' ? '🔁 Campanha de Replay' : '🔔 Campanha de Lembrete';
+      const sub    = kind==='replay' ? 'Anúncios de replay · pós-masterclass' : 'Anúncios de lembrete · pré-masterclass';
+      let h='';
+      h+=`<div class="lbl">${titulo} <span style="color:var(--sub);font-weight:600">· ${sub}</span></div>`;
+      h+='<div class="kpis">'+
+        kpi('Investido (R$)','k-terra',BRL(costR))+
+        kpi('Investido (US$)','k-gold',USD(cost))+
+        kpi('Impressões','',NUM(imp))+
+        kpi('Cliques','k-agave',NUM(clk))+
+        kpi('CTR','k-good',PCT(ctr))+
+        kpi('CPC (US$)','',clk?USD(cpc):'—')+
+        kpi('CPM (R$)','',BRL(cpm))+
+        (kind==='replay' ? kpi('Page Views','',NUM(pv))+kpi('Custo/PV (US$)','',pv?USD(div(cost,pv)):'—') : '')+
+      '</div>';
+      h+='<div class="lbl">Evolução por dia</div><div class="charts2">'+
+        '<div class="chart-card"><div class="chart-title">Investido (US$) · Cliques por dia</div><div class="chart-box"><canvas id="cLR"></canvas></div></div>'+
+      '</div>';
+      h+='<div class="lbl">Criativos</div><div class="tbl-box"><div class="tbl-scroll"><table><thead><tr>'+
+        '<th style="text-align:left">Criativo</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Cliques</th>'+
+        (kind==='replay'?'<th class="num">Page Views</th>':'')+'<th class="num">CPC</th><th class="num">Investido</th><th>Link</th>'+
+        '</tr></thead><tbody id="tbLR"></tbody></table></div></div>';
+      document.getElementById('body').innerHTML=h;
+      drawLRDia(rows);
+      fillTableLR(rows,kind);
+      document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    }catch(e){
+      document.getElementById('body').innerHTML='<div class="empty err">Erro ao carregar a aba: '+esc(e.message)+'</div>';
+    }
+  }
+  function drawLRDia(rows){
+    const el=document.getElementById('cLR');if(!el)return;
+    const by={};for(const r of rows){const k=dkey(r.date);const o=by[k]||(by[k]={cost:0,clk:0});o.cost+=r.cost;o.clk+=r.clk;}
+    const ks=Object.keys(by).sort();const lbls=ks.map(k=>{const p=k.split('-');return p[2]+'/'+p[1];});
+    _charts.push(new Chart(el,{data:{labels:lbls,datasets:[
+      {type:'bar',label:'Investido (US$)',data:ks.map(k=>+by[k].cost.toFixed(2)),backgroundColor:'rgba(224,122,95,.6)',borderColor:'#E07A5F',borderWidth:1,borderRadius:5,maxBarThickness:40,yAxisID:'y'},
+      {type:'line',label:'Cliques',data:ks.map(k=>by[k].clk),borderColor:'#2FB0A0',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#2FB0A0',tension:.3,yAxisID:'y1'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#c3ccd8',boxWidth:12,font:{size:11}}}},
+      scales:{x:{...AX,grid:{display:false}},y:{...AX,beginAtZero:true,position:'left',ticks:{color:'#8a97a8',font:{size:10},callback:v=>'$'+v}},
+        y1:{position:'right',grid:{drawOnChartArea:false},beginAtZero:true,ticks:{color:'#2FB0A0',font:{size:10}}}}}}));
+  }
+  function fillTableLR(rows,kind){
+    const by={};
+    for(const r of rows){const k=r.anuncio||'(sem nome)';let o=by[k];
+      if(!o)o=by[k]={anuncio:k,link:r.link,imp:0,clk:0,pv:0,inv:0};
+      o.imp+=r.imp;o.clk+=r.clk;o.pv+=r.pv;o.inv+=r.cost;if(!o.link&&r.link)o.link=r.link;}
+    let list=Object.values(by).map(o=>({...o,ctr:div(o.clk,o.imp)*100,cpc:div(o.inv,o.clk)}));
+    list.sort((a,b)=>b.inv-a.inv);
+    const cols = kind==='replay'?8:7;
+    document.getElementById('tbLR').innerHTML=list.map(o=>`<tr>
+      <td class="cri-nm" title="${esc(o.anuncio)}">${esc(o.anuncio)}</td>
+      <td class="num">${NUM(o.imp)}</td><td class="num">${PCT(o.ctr)}</td><td class="num">${NUM(o.clk)}</td>
+      ${kind==='replay'?`<td class="num">${NUM(o.pv)}</td>`:''}
+      <td class="num">${o.clk?USD(o.cpc):'—'}</td><td class="num">${BRL(o.inv*COT)}</td>
+      <td>${o.link?`<a class="lnk" href="${esc(o.link)}" target="_blank">🔗 ver</a>`:'—'}</td></tr>`).join('')
+      ||`<tr><td colspan="${cols}" class="empty">Sem criativos.</td></tr>`;
   }
 
   function kpi(l,cls,v){return `<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
