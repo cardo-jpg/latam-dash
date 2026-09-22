@@ -217,6 +217,7 @@
       <button data-v="pesquisa" onclick="setView(this)">📋 Pesquisa</button>
       <button data-v="lembrete" onclick="setView(this)">🔔 Lembrete</button>
       <button data-v="replay" onclick="setView(this)">🔁 Replay</button>
+      <button data-v="vendas" onclick="setView(this)">💰 Vendas</button>
     </div>
     <div class="seg" id="segPais">
       <button class="on" data-p="all" onclick="setPais(this)">Todos</button>
@@ -379,6 +380,7 @@
     else if(_view==='paginas') renderPaginas();
     else if(_view==='lembrete') renderLR('lembrete');
     else if(_view==='replay') renderLR('replay');
+    else if(_view==='vendas') renderVendas();
     else render();
   }
   // ── Pesquisa de qualificação (padrão WICI: cards com gráficos Chart.js) ───────
@@ -749,6 +751,90 @@
       <td class="num">${o.clk?USD(o.cpc):'—'}</td><td class="num">${BRL(o.inv*COT)}</td>
       <td>${o.link?`<a class="lnk" href="${esc(o.link)}" target="_blank">🔗 ver</a>`:'—'}</td></tr>`).join('')
       ||`<tr><td colspan="${cols}" class="empty">Sem criativos.</td></tr>`;
+  }
+
+  // ── Aba VENDAS (aba "Vendas": Data|Campanha|Publico|Criativo|Investimento|Impr|Cliques|Visitas|Carrinho|ValorCarrinho|Checkout|Vendas|Faturamento|Link) ──
+  function rowsParseVendas(t){
+    const out=[];
+    for(const r of (t.rows||[])){
+      const c=r.c||[]; const d=cDate(c[0]); if(!d) continue;
+      out.push({date:d, campanha:cStr(c[1]), publico:cStr(c[2]), anuncio:cStr(c[3]),
+        cost:cNum(c[4]), imp:cNum(c[5]), clk:cNum(c[6]), vis:cNum(c[7]),
+        cart:cNum(c[8]), checkout:cNum(c[10]), vendas:cNum(c[11]), fat:cNum(c[12]),
+        link:cStr(c[13])});
+    }
+    return out;
+  }
+  async function renderVendas(){
+    _charts.forEach(c=>{try{c.destroy();}catch(e){}});_charts=[];
+    document.getElementById('body').innerHTML='<div class="loading">Cargando…</div>';
+    try{
+      const t=await gviz('sheet=Vendas&_cb='+Date.now());
+      const rows=rowsParseVendas(t);
+      if(!rows.length){document.getElementById('body').innerHTML='<div class="empty">Sem dados na aba Vendas ainda.</div>';return;}
+      const S=k=>rows.reduce((s,r)=>s+(r[k]||0),0);
+      const cost=S('cost'),imp=S('imp'),clk=S('clk'),vis=S('vis'),checkout=S('checkout'),vendas=S('vendas'),fat=S('fat');
+      const costR=cost*COT, fatR=fat*COT, roas=div(fat,cost), cpa=div(cost,vendas), ticket=div(fat,vendas), ctr=div(clk,imp)*100;
+      let h='';
+      h+='<div class="lbl">💰 Campanha de Vendas <span style="color:var(--sub);font-weight:600">· pós-carrinho aberto</span></div>';
+      h+='<div class="kpis">'+
+        kpi('Vendas','k-good',NUM(vendas))+
+        kpi('Faturamento (R$)','k-gold',BRL(fatR))+
+        kpi('ROAS','k-terra',roas?roas.toFixed(2):'—')+
+        kpi('Investido (R$)','k-terra',BRL(costR))+
+        kpi('CPA (US$)','',vendas?USD(cpa):'—')+
+        kpi('Ticket (US$)','',vendas?USD(ticket):'—')+
+        kpi('Cliques','k-agave',NUM(clk))+
+        kpi('CTR','',PCT(ctr))+
+      '</div>';
+      h+='<div class="lbl">Funil & evolução</div><div class="charts2">'+
+        '<div class="chart-card"><div class="chart-title">Funil de vendas</div><div class="chart-box"><canvas id="cVFun"></canvas></div></div>'+
+        '<div class="chart-card"><div class="chart-title">Faturamento (US$) · Vendas por dia</div><div class="chart-box"><canvas id="cVDia"></canvas></div></div>'+
+      '</div>';
+      h+='<div class="lbl">Criativos</div><div class="tbl-box"><div class="tbl-scroll"><table><thead><tr>'+
+        '<th style="text-align:left">Criativo</th><th class="num">Impr.</th><th class="num">Cliques</th><th class="num">Visitas</th><th class="num">Vendas</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">Investido</th><th>Link</th>'+
+        '</tr></thead><tbody id="tbV"></tbody></table></div></div>';
+      document.getElementById('body').innerHTML=h;
+      drawVFunnel(imp,clk,vis,checkout,vendas);
+      drawVDia(rows);
+      fillTableV(rows);
+      document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    }catch(e){ document.getElementById('body').innerHTML='<div class="empty err">Erro ao carregar Vendas: '+esc(e.message)+'</div>'; }
+  }
+  function drawVFunnel(imp,clk,vis,checkout,vendas){
+    const el=document.getElementById('cVFun');if(!el)return;
+    const data=[imp,clk,vis,checkout,vendas], labels=['Impressões','Cliques','Visitas','Checkout','Vendas'];
+    _charts.push(new Chart(el,{type:'bar',data:{labels,datasets:[{data,
+      backgroundColor:['rgba(233,196,106,.30)','rgba(244,162,97,.55)','rgba(47,176,160,.6)','rgba(139,123,239,.6)','rgba(224,122,95,.85)'],
+      borderColor:['#E9C46A','#F4A261','#2FB0A0','#8b7bef','#E07A5F'],borderWidth:1,borderRadius:6,maxBarThickness:70}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+NUM(c.parsed.x)}}},
+        scales:{x:{...AX,beginAtZero:true},y:{...AX,grid:{display:false}}}}}));
+  }
+  function drawVDia(rows){
+    const el=document.getElementById('cVDia');if(!el)return;
+    const by={};for(const r of rows){const k=dkey(r.date);const o=by[k]||(by[k]={fat:0,vendas:0});o.fat+=r.fat;o.vendas+=r.vendas;}
+    const ks=Object.keys(by).sort();const lbls=ks.map(k=>{const p=k.split('-');return p[2]+'/'+p[1];});
+    _charts.push(new Chart(el,{data:{labels:lbls,datasets:[
+      {type:'bar',label:'Faturamento (US$)',data:ks.map(k=>+by[k].fat.toFixed(2)),backgroundColor:'rgba(233,196,106,.6)',borderColor:'#E9C46A',borderWidth:1,borderRadius:5,maxBarThickness:40,yAxisID:'y'},
+      {type:'line',label:'Vendas',data:ks.map(k=>by[k].vendas),borderColor:'#E07A5F',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#E07A5F',tension:.3,yAxisID:'y1'}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#c3ccd8',boxWidth:12,font:{size:11}}}},
+      scales:{x:{...AX,grid:{display:false}},y:{...AX,beginAtZero:true,position:'left',ticks:{color:'#8a97a8',font:{size:10},callback:v=>'$'+v}},
+        y1:{position:'right',grid:{drawOnChartArea:false},beginAtZero:true,ticks:{color:'#E07A5F',font:{size:10}}}}}}));
+  }
+  function fillTableV(rows){
+    const by={};
+    for(const r of rows){const k=r.anuncio||'(sem nome)';let o=by[k];
+      if(!o)o=by[k]={anuncio:k,link:r.link,imp:0,clk:0,vis:0,vendas:0,fat:0,inv:0};
+      o.imp+=r.imp;o.clk+=r.clk;o.vis+=r.vis;o.vendas+=r.vendas;o.fat+=r.fat;o.inv+=r.cost;if(!o.link&&r.link)o.link=r.link;}
+    let list=Object.values(by).map(o=>({...o,roas:div(o.fat,o.inv)}));
+    list.sort((a,b)=>b.inv-a.inv);
+    document.getElementById('tbV').innerHTML=list.map(o=>`<tr>
+      <td class="cri-nm" title="${esc(o.anuncio)}">${esc(o.anuncio)}</td>
+      <td class="num">${NUM(o.imp)}</td><td class="num">${NUM(o.clk)}</td><td class="num">${NUM(o.vis)}</td>
+      <td class="num">${NUM(o.vendas)}</td><td class="num">${BRL(o.fat*COT)}</td><td class="num">${o.inv?o.roas.toFixed(2):'—'}</td><td class="num">${BRL(o.inv*COT)}</td>
+      <td>${o.link?`<a class="lnk" href="${esc(o.link)}" target="_blank">🔗 ver</a>`:'—'}</td></tr>`).join('')
+      ||'<tr><td colspan="9" class="empty">Sem criativos.</td></tr>';
   }
 
   function kpi(l,cls,v){return `<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
