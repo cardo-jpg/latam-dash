@@ -791,12 +791,16 @@
         '<div class="chart-card"><div class="chart-title">Funil de vendas</div><div class="chart-box"><canvas id="cVFun"></canvas></div></div>'+
         '<div class="chart-card"><div class="chart-title">Faturamento (US$) · Vendas por dia</div><div class="chart-box"><canvas id="cVDia"></canvas></div></div>'+
       '</div>';
+      h+='<div class="lbl">Por campanha</div><div class="tbl-box"><div class="tbl-scroll"><table><thead><tr>'+
+        '<th style="text-align:left">Campanha</th><th class="num">Impr.</th><th class="num">Cliques</th><th class="num">Visitas</th><th class="num">Vendas</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">Investido</th>'+
+        '</tr></thead><tbody id="tbCampV"></tbody></table></div></div>';
       h+='<div class="lbl">Criativos</div><div class="tbl-box"><div class="tbl-scroll"><table><thead><tr>'+
-        '<th style="text-align:left">Criativo</th><th class="num">Impr.</th><th class="num">Cliques</th><th class="num">Visitas</th><th class="num">Vendas</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">Investido</th><th>Link</th>'+
+        '<th style="text-align:left">Campanha</th><th style="text-align:left">Criativo</th><th class="num">Impr.</th><th class="num">Cliques</th><th class="num">Visitas</th><th class="num">Vendas</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">Investido</th><th>Link</th>'+
         '</tr></thead><tbody id="tbV"></tbody></table></div></div>';
       document.getElementById('body').innerHTML=h;
       drawVFunnel(imp,clk,vis,checkout,vendas);
       drawVDia(rows);
+      fillCampV(rows);
       fillTableV(rows);
       document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     }catch(e){ document.getElementById('body').innerHTML='<div class="empty err">Erro ao carregar Vendas: '+esc(e.message)+'</div>'; }
@@ -822,19 +826,32 @@
       scales:{x:{...AX,grid:{display:false}},y:{...AX,beginAtZero:true,position:'left',ticks:{color:'#8a97a8',font:{size:10},callback:v=>'$'+v}},
         y1:{position:'right',grid:{drawOnChartArea:false},beginAtZero:true,ticks:{color:'#E07A5F',font:{size:10}}}}}}));
   }
+  function fillCampV(rows){
+    const by={};
+    for(const r of rows){const k=r.campanha||'—';let o=by[k];
+      if(!o)o=by[k]={campanha:k,imp:0,clk:0,vis:0,vendas:0,fat:0,inv:0};
+      o.imp+=r.imp;o.clk+=r.clk;o.vis+=r.vis;o.vendas+=r.vendas;o.fat+=r.fat;o.inv+=r.cost;}
+    let list=Object.values(by).map(o=>({...o,roas:div(o.fat,o.inv)})).sort((a,b)=>b.inv-a.inv);
+    document.getElementById('tbCampV').innerHTML=list.map(o=>`<tr>
+      <td class="cri-nm" title="${esc(o.campanha)}">${esc(o.campanha)}</td>
+      <td class="num">${NUM(o.imp)}</td><td class="num">${NUM(o.clk)}</td><td class="num">${NUM(o.vis)}</td>
+      <td class="num">${NUM(o.vendas)}</td><td class="num">${BRL(o.fat*COT)}</td><td class="num">${o.inv?o.roas.toFixed(2):'—'}</td><td class="num">${BRL(o.inv*COT)}</td>
+      </tr>`).join('')||'<tr><td colspan="8" class="empty">Sem campanhas.</td></tr>';
+  }
   function fillTableV(rows){
     const by={};
-    for(const r of rows){const k=r.anuncio||'(sem nome)';let o=by[k];
-      if(!o)o=by[k]={anuncio:k,link:r.link,imp:0,clk:0,vis:0,vendas:0,fat:0,inv:0};
+    for(const r of rows){const k=(r.campanha||'—')+'|'+(r.anuncio||'(sem nome)');let o=by[k];
+      if(!o)o=by[k]={campanha:r.campanha||'—',anuncio:r.anuncio||'(sem nome)',link:r.link,imp:0,clk:0,vis:0,vendas:0,fat:0,inv:0};
       o.imp+=r.imp;o.clk+=r.clk;o.vis+=r.vis;o.vendas+=r.vendas;o.fat+=r.fat;o.inv+=r.cost;if(!o.link&&r.link)o.link=r.link;}
     let list=Object.values(by).map(o=>({...o,roas:div(o.fat,o.inv)}));
-    list.sort((a,b)=>b.inv-a.inv);
+    list.sort((a,b)=> a.campanha===b.campanha ? b.inv-a.inv : String(a.campanha).localeCompare(String(b.campanha)));
     document.getElementById('tbV').innerHTML=list.map(o=>`<tr>
+      <td class="cri-nm" title="${esc(o.campanha)}">${esc(o.campanha)}</td>
       <td class="cri-nm" title="${esc(o.anuncio)}">${esc(o.anuncio)}</td>
       <td class="num">${NUM(o.imp)}</td><td class="num">${NUM(o.clk)}</td><td class="num">${NUM(o.vis)}</td>
       <td class="num">${NUM(o.vendas)}</td><td class="num">${BRL(o.fat*COT)}</td><td class="num">${o.inv?o.roas.toFixed(2):'—'}</td><td class="num">${BRL(o.inv*COT)}</td>
       <td>${o.link?`<a class="lnk" href="${esc(o.link)}" target="_blank">🔗 ver</a>`:'—'}</td></tr>`).join('')
-      ||'<tr><td colspan="9" class="empty">Sem criativos.</td></tr>';
+      ||'<tr><td colspan="10" class="empty">Sem criativos.</td></tr>';
   }
 
   function kpi(l,cls,v){return `<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
